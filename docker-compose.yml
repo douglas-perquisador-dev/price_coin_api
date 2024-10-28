@@ -1,0 +1,28 @@
+version: "3.8"
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: fastapi_app
+    ports:
+      - "8000:8000"  # Mapeia a porta 8000 para acesso local
+    depends_on:
+      - redis
+    environment:
+      - REDIS_URL=redis://redis:6379/0  # URL para conectar-se ao Redis no contêiner
+    networks:
+      - app_network
+
+  redis:
+    image: "redis:alpine"
+    container_name: redis_cache
+    ports:
+      - "6379:6379"  # Mapeia a porta 6379 para acesso local
+    networks:
+      - app_network
+
+networks:
+  app_network:
+    driver: bridge
