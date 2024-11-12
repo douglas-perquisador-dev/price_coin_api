@@ -50,7 +50,13 @@ Para acessar as rotas protegidas da API, você precisará usar as seguintes cred
 
 ## Testando a API
 
-Você pode testar a API utilizando ferramentas como o **Insomnia**, **cURL** ou o Swegger. Abaixo está um exemplo de como realizar uma chamada autenticada:
+Você pode testar a API utilizando ferramentas como o **Insomnia**, **cURL** ou o Pytest. Abaixo está um exemplo de como realizar uma chamada autenticada:
+
+### Comando Pytest
+Com o projeto clonado execute na raiz do projeto o comando a baixo para executar os testes de integração e o teste de lotes, que testará as principais criptomoedas em nosso API.
+```bash
+pytest --maxfail=1 --tb=short -v
+```
 ### Exemplo de uso com cURL
 ```bash
 curl --location 'http://localhost:8000/coin_infos' \
@@ -61,9 +67,5 @@ curl --location 'http://localhost:8000/coin_infos' \
   }'
 ```
 **Nota**: O valor dXNlcl8xOnNlbmhhMTIz é a string codificada em Base64 para admin:123456. Você pode gerar essa string usando o seguinte comando:
-### Usando o Swegger Docs
-```
-localhost:8000/api/docs/
-```
 ## Observação
 Devido ao Cloudflare CDN bloquear meu IP com base na API v1, meu acesso foi limitado à url https://store.mercadobitcoin.com.br/api/v1/marketplace/product/unlogged. 
