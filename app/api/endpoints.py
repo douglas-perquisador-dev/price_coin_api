@@ -28,5 +28,4 @@ async def get_coin_info(coin: CoinRequest):
     else:
         provider = CoinProviderFactory.get_provider("fallback")
         strategy = CoinFetchStrategy(provider)
-        # await asyncio.sleep(2)
         return await strategy.fetch_coin_price(coin.symbol.lower())
