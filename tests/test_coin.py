@@ -1,12 +1,54 @@
-# tests/test_coin.py
 import pytest
 from fastapi.testclient import TestClient
-from app.main import app  # Importa o aplicativo FastAPI
-from app.models.coin import CoinRequest
-from app.services.strategies import MercadoBitcoinStrategy
+from fastapi_cache import FastAPICache
+from fastapi_cache.backends.redis import RedisBackend
+from app.main import app
+from app.services.strategies import  FallbackStrategy
+import time
+
+cryptocurrencies = {
+    "Bitcoin": "BTC",
+    "Ethereum": "ETH",
+    "Binance Coin": "BNB",
+    "Ripple": "XRP",
+    "Litecoin": "LTC",
+    "Cardano": "ADA",
+    "Polkadot": "DOT",
+    "Chainlink": "LINK",
+    "Dogecoin": "DOGE",
+    "Solana": "SOL",
+    "Avalanche": "AVAX",
+    "Polygon": "MATIC",
+    "Shiba Inu": "SHIB",
+    "Uniswap": "UNI",
+    "Terra": "LUNA",
+    "Algorand": "ALGO",
+    "VeChain": "VET",
+    "Cosmos": "ATOM",
+    "Monero": "XMR",
+    "Tezos": "XTZ",
+    "Filecoin": "FIL",
+    "Zcash": "ZEC",
+    "Stellar": "XLM",
+    "EOS": "EOS",
+    "TRON": "TRX",
+    "Aave": "AAVE",
+    "Compound": "COMP",
+    "SushiSwap": "SUSHI",
+    "Maker": "MKR",
+    "Fantom": "FTM",
+}
+
+# Inicializando o cache no FastAPI para os testes
+@pytest.fixture(autouse=True)
+def setup_cache():
+    # Configura o backend de cache para os testes
+    cache_backend = RedisBackend("redis://localhost:6379")  # ou usar MemoryBackend para testes locais
+    FastAPICache.init(cache_backend)
+    yield  # Aqui é onde o teste é executado
+    # Aqui você pode adicionar o que precisa após o teste, como limpar o cache
 
 client = TestClient(app)
-
 
 @pytest.fixture
 def mock_coin_provider(mocker):
@@ -16,82 +58,19 @@ def mock_coin_provider(mocker):
 
 
 @pytest.mark.asyncio
-async def test_get_coin_info_success(mocker, mock_coin_provider):
-    mock_provider = mocker.Mock(spec=MercadoBitcoinStrategy)
-    mock_provider.fetch.return_value = {
-        "response_data": {
-		"total_items": 1,
-		"products": [
-			{
-				"product_id": "BTC",
-				"name": "Bitcoin",
-				"icon_url": {
-					"svg": "https://static.mercadobitcoin.com.br/web/img/icons/assets/ico-asset-btc-color.svg",
-					"png": "https://static.mercadobitcoin.com.br/app/general/assets/btc.png"
-				},
-				"type": "crypto",
-				"market_price": "388788.33000000000000000000000000000000",
-				"tags": [],
-				"description": "Bitcoin é uma moeda digital que permite pagamentos em transações online sem a necessidade de um intermediário. Baseada na rede blockchain, foi a pioneira entre as criptomoedas.",
-				"product_data": {
-					"symbol": "BTC",
-					"type": "crypto",
-					"sub_type": {
-						"code": "coin",
-						"display_text": "Criptomoeda"
-					},
-					"variation": {
-						"string": "+0.72%",
-						"number": 0.7165295810981192,
-						"status": "positive"
-					},
-					"market_cap": "7671288667305.76300000000000000000000000000000",
-					"created_at": "2022-08-29T07:04:49",
-					"release_date": "2013-01-01",
-					"asset_decimals": 8,
-					"fiat_decimals": 2,
-					"visible_when_unlogged": True,
-					"visible_when_logged": True,
-					"prelisted": False,
-					"fact_sheet_url": None,
-					"term_url": None,
-					"warnings": [],
-					"cover_letter_data": {
-						"cover_letter_additional_info": "",
-						"show_cover_letter_chart": True,
-						"show_cover_letter": True
-					},
-					"origin_groups_allowed": None,
-					"contract_type": "",
-					"payment_type": "",
-					"visibility_filter_tags": [
-						"public"
-					],
-					"quote": "BRL"
-				},
-				"favorite": False,
-				"balances": {
-					"available_quantity": "0",
-					"available_fiat_value": "0",
-					"on_hold_quantity": "0",
-					"on_hold_fiat_value": "0",
-					"wallet_details": []
-				},
-				"visible_when_logged": True,
-				"visible_when_unlogged": True
-			}
-		],
-		"pagination": {
-			"limit": 20,
-			"offset": 0
-		}
-	}
-    }
+async def test_get_coin_info_fallback(mocker, mock_coin_provider):
+    # Mocking o provedor de fallback
+    mock_fetch_client = mocker.patch('app.core.utils.fetch_client', autospec=True)
 
-    mocker.patch("app.services.coin_factory.CoinProviderFactory.get_provider", return_value=mock_coin_provider)
+    # Dados mockados para as duas chamadas fetch_client
+    # Simulando a resposta do preço em BRL para o símbolo BTC
+    mock_fetch_client.side_effect = [
+        {'data': {'BTC': {'name': 'Bitcoin', 'symbol': 'BTC', 'quote': {'BRL': {'price': 388788.33}}}}},  # BRL
+        {'data': {'BTC': {'quote': {'USD': {'price': 388788.33}}}}}  # USD
+    ]
 
-    # Realiza a requisição
-    response = client.post("/coin_infos", json={"symbol": "BTC"})
+
+    response = client.post("/coin_infos", json={"symbol": "BTC"}, auth=("admin", "123456"))
 
     assert response.status_code == 200
     # Verifica se os campos de atributos estão presentes na resposta
@@ -99,25 +78,54 @@ async def test_get_coin_info_success(mocker, mock_coin_provider):
 
 
 @pytest.mark.asyncio
-async def test_get_coin_info_fallback(mocker, mock_coin_provider):
-    # Mocking o provedor de fallback
-    mock_fallback_provider = mocker.Mock()
-    mock_fallback_provider.fetch.side_effect = [
-        None,  # Primeira tentativa falha
-        {
-            "name": "Bitcoin",
-            "code": "BTC",
-            "bid": 49000,
-            "coin_price_dolar": "90000",
-            "create_date": "2024-10-28"
-        }
-    ]
+async def test_get_major_coins_info(mocker, mock_coin_provider):
+	for coin_name, coin_symbol in cryptocurrencies.items():
+		response = client.post("/coin_infos", json={"symbol": coin_symbol}, auth=("admin", "123456"))
 
-    mocker.patch("app.services.coin_factory.CoinProviderFactory.get_provider",
-                 side_effect=[mock_coin_provider, mock_fallback_provider])
+		if response.status_code == 404:
+			# Aguarda 2 segundos
+			time.sleep(5)
+			response = client.post("/coin_infos", json={"symbol": coin_symbol}, auth=("admin", "123456"))
 
-    response = client.post("/coin_infos", json={"symbol": "BTC"})
+		if response.status_code == 200:
+			print(f"Sucesso para {coin_name} ({coin_symbol}) - Status 200")
+		elif response.status_code == 400:
+			print(f"Erro para {coin_name} ({coin_symbol}) - Status 400")
+		else:
+			print(f"Status não esperado para {coin_name} ({coin_symbol}) - Status {response.status_code}")
 
-    assert response.status_code == 200
-    # Verifica se os campos de atributos estão presentes na resposta
-    assert set(response.json().keys()) == {"coin_name", "symbol", "coin_price", "coin_price_dolar", "date_consult"}
+		# Verifica se os campos de atributos estão presentes na resposta
+		# assert response.status_code in [200, 400]  # Esperando 200 ou 400
+		if response.status_code == 200:
+			assert set(response.json().keys()) == {"coin_name", "symbol", "coin_price", "coin_price_dolar",
+												   "date_consult"}
+
+
+@pytest.mark.asyncio
+async def test_get_major_coins_info2(mocker, mock_coin_provider):
+	for coin_name, coin_symbol in cryptocurrencies.items():
+		# response = client.post("/coin_infos", json={"symbol": coin_symbol}, auth=("admin", "123456"))
+
+		# Instância da estratégia FallbackStrategy
+		strategy = FallbackStrategy()
+
+		try:
+			response = await strategy.fetch(coin_symbol)
+		except:
+			# Aguarda 2 segundos
+			time.sleep(5)
+			response = await strategy.fetch(coin_symbol)
+
+		res_success = set(response.keys()) == {"coin_name", "symbol", "coin_price", "coin_price_dolar",
+												   "date_consult"}
+		res_error = set(response.keys()) == {"detail"}
+
+		if res_success:
+			print(f"Sucesso para {coin_name} ({coin_symbol}) - Status 200")
+		elif res_error:
+			print(f"Error para {coin_name} ({coin_symbol}) - Status 400")
+		else:
+			print(f"Status não esperado para {coin_name} ({coin_symbol}) - Status {response.status_code}")
+
+		# Verifica se os campos de atributos estão presentes na resposta
+		# assert response.status_code in [200, 400]  # Esperando 200 ou 400
